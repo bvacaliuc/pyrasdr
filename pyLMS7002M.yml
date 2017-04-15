@@ -1,0 +1,20 @@
+name: pyLMS7002m
+channels: !!python/tuple
+- defaults
+dependencies:
+- future
+- ipython
+- libpng
+- matplotlib
+- numpy
+- pip
+- pyserial
+- pytz
+- python=2.7.12
+- six
+- traitlets
+- pip:
+  - pyfftw
+  - pynmea2
+  - pyusb
+  - gooey
