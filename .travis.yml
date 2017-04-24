@@ -5,7 +5,7 @@ python:
   - "2.7"
   - "3.5.2"
 before_install:
-  - export PYTHONPATH=$HOME/.local
+  - export PYTHONPATH=$HOME/pyrasdr
 install:
   - pip install -U pip setuptools wheel
   - pip install -U pytest pytest-xdist
