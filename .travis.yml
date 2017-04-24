@@ -1,0 +1,14 @@
+language: python
+sudo: required
+dist: trusty
+python:
+  - "2.7"
+  - "3.5.2"
+install:
+  - pip install -U pip setuptools wheel
+  - pip install -U pytest pytest-xdist pytest-cov coveralls
+  - pip install -U pyserial numpy
+script:
+  - py.test --cov-append --cov-config .coveragerc --cov=plugins
+after_success:
+  - coveralls
