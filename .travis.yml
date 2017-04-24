@@ -4,11 +4,11 @@ dist: trusty
 python:
   - "2.7"
   - "3.5.2"
+before_install:
+  - export PYTHONPATH=$HOME/.local
 install:
   - pip install -U pip setuptools wheel
-  - pip install -U pytest pytest-xdist pytest-cov coveralls
+  - pip install -U pytest pytest-xdist
   - pip install -U pyserial numpy
 script:
-  - py.test --cov-append --cov-config .coveragerc --cov=plugins
-after_success:
-  - coveralls
+  - py.test
