@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/bvacaliuc/pyrasdr.svg?branch=master)](https://travis-ci.org/bvacaliuc/pyrasdr)
+
 # The pyrasdr Project
 This is a cross-platform, pure-python interface to receivers supported by the [RASDR](https://github.com/myriadrf/RASDR) project.
 
