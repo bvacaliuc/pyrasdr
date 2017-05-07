@@ -11,4 +11,4 @@ install:
   - pip install -U pytest pytest-xdist
   - pip install -U pyserial numpy
 script:
-  - py.test
+  - py.test --pyargs tests/test_*
