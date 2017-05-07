@@ -26,7 +26,6 @@ install:
   # Useful for debugging any issues with conda
   ##- conda info -a
   # Create the environment and add pytest to it
-  - apt-get install fftw
   - conda env create -q -f pyLMS7002M.yml  # TODO: python=$TRAVIS_PYTHON_VERSION
   - source activate pyLMS7002m
   - pip install -U setuptools wheel pytest pytest-xdist
