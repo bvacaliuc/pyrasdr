@@ -18,6 +18,12 @@ try:
 except ImportError:
     raise NotImplementedError('numpy is required')
 
+class RASDRException(Exception):
+    """Base Exception class for the RASDR module"""
+
+class PolarityException(RASDRException):
+    """Buffer contained an IQ/QI inversion (data loss)"""
+
 # http://stackoverflow.com/questions/4984647/accessing-dict-keys-like-an-attribute-in-python
 class AttributeDict(dict):
     __getattr__ = dict.__getitem__
@@ -41,7 +47,8 @@ class BaseRASDR(object):
         'simulation':False,
         'gain':DEFAULT_GAIN,
         'fc':DEFAULT_FC,
-        'sr':DEFAULT_SR,
+        'sr':DEFAULT_SR,        # samples-per-second
+        'sps':(1.0/DEFAULT_SR), # seconds-per-sample
         'bw':DEFAULT_BW,
         'samples':DEFAULT_SAMPLES,
         'tcxo':REFERENCE_FREQ,
@@ -78,7 +85,7 @@ class BaseRASDR(object):
         '''
         pass
 
-    def set_center_freq(self, frequency):
+    def _set_center_freq(self, frequency):
         '''
         Set center frequency of the channel.
         
@@ -94,6 +101,80 @@ class BaseRASDR(object):
         self.state.tuner['n'] = n
         self.state.fc = (self.state.tcxo * r) / n
 
-    def get_center_freq(self):
+    def _get_center_freq(self):
         '''Return center frequency of tuner (in Hz).'''
         return self.state.fc
+
+    def _set_sample_rate(self, rate):
+        pass
+    def _get_sample_rate(self):
+        '''Return sample rate of the ADC (in Hz).'''
+        return self.state.sr
+
+    def _set_bandwidth(self, bw):
+        pass
+    def _get_bandwidth(self):
+        '''Return bandwidth of the LPF prior to the ADC (in Hz).'''
+        return self.state.bw
+
+    def _set_gain(self, gain):
+        pass
+    def _get_gain(self):
+        '''Return gain of the receiver (in dB).'''
+        return self.state.gain
+
+    def read(self, n=(DEFAULT_SAMPLES*2*2)):
+        raise NotImplementedError('TODO')
+    def read_samples(self, n=DEFAULT_SAMPLES):
+        raise NotImplementedError('TODO')
+
+    def _packed_bytes_to_iq(self, bytes, iq_polarity=False, otm_polarity=False):
+        '''
+        Unpack array of bytes to numpy array of complex numbers.
+        
+        :param bytes: A buffer-like object containing packed IQ data with control bits
+        :option iq_polarity: A boolean indicating the order of IQ (False) or QI (True)
+        :option otm_polarity: A boolean indicating the polarity of the PPS input
+        :returns: A tuple representing a numpy array of complex values, the sample
+            offset of the OTM (or -1 if not found), the time offset (in seconds) from
+            the *END* of the buffer that the OTM marker occured.
+        
+        The function will strip control bits from a raw data stream obtained from a
+        RASDR2/3 receiver and return a complex numpy array with the samples arranged
+        in the correct order.  The function will also analyze the control bits in the
+        stream for the on-time-marker (OTM) or pulse-per-second input that was sampled
+        along with the stream.
+        '''
+        b = np.frombuffer(bytes,dtype='<i2')
+        iq = np.empty(len(b)//2, 'complex')
+        if iq_polarity:
+            ri = 1                  # QIQIQI...
+            qi = 0
+        else:
+            ri = 0                  # IQIQIQ...
+            qi = 1
+        re = b[ri::2] & 0x1000      # in-phase samples
+        im = b[qi::2] & 0x1000      # quadrature samples
+        otm = b & 0x8000            # on-time-marker
+        iq.real = b[ri::2] & 0xFFF  # strip control bits
+        iq.imag = b[qi::2] & 0xFFF  # "
+        if re.max()>0 or im.min()<1:
+            raise PolarityException('Expected {}...'.format('QIQI' if iq_polarity else 'IQIQ'))
+        iq /= (4095/2)
+        iq -= (1 + 1j)
+        otm_index = -1              # on-time-marker not found
+        if otm_polarity and otm.min()<1:
+            otm_index = int(otm.argmin()/2)
+        elif not otm_polarity and otm.max()>0:
+            otm_index = int(otm.argmax()/2)
+        return iq, otm_index, (len(iq)-otm_index)*self.state.sps
+
+    # Property-based interface to the object
+    center_freq = property(_get_center_freq, _set_center_freq,
+                    doc='set or get the center frequency of tuner (in Hz)')
+    sample_rate = property(_get_sample_rate, _set_sample_rate,
+                    doc='set or get the sample rate of the ADC (in Hz)')
+    gain = property(_get_gain, _set_gain,
+                    doc='set or get the gain of the receiver (in dB)')
+    bandwidth = property(_get_bandwidth, _set_bandwidth,
+                    doc='set or get the bandwidth of the LPF prior to the ADC (in Hz)')
