@@ -131,14 +131,14 @@ class BaseRASDR(object):
     def _packed_bytes_to_iq(self, bytes, iq_polarity=False, otm_polarity=False):
         '''
         Unpack array of bytes to numpy array of complex numbers.
-        
+
         :param bytes: A buffer-like object containing packed IQ data with control bits
         :option iq_polarity: A boolean indicating the order of IQ (False) or QI (True)
         :option otm_polarity: A boolean indicating the polarity of the PPS input
         :returns: A tuple representing a numpy array of complex values, the sample
             offset of the OTM (or -1 if not found), the time offset (in seconds) from
             the *END* of the buffer that the OTM marker occured.
-        
+
         The function will strip control bits from a raw data stream obtained from a
         RASDR2/3 receiver and return a complex numpy array with the samples arranged
         in the correct order.  The function will also analyze the control bits in the
@@ -167,7 +167,7 @@ class BaseRASDR(object):
             otm_index = int(otm.argmin()/2)
         elif not otm_polarity and otm.max()>0:
             otm_index = int(otm.argmax()/2)
-        return iq, otm_index, (len(iq)-otm_index)*self.state.sps
+        return iq, otm_index, (len(iq)-otm_index-1)*self.state.sps
 
     # Property-based interface to the object
     center_freq = property(_get_center_freq, _set_center_freq,
