@@ -159,7 +159,7 @@ class BaseRASDR(object):
         May raise a ParameterError exception if device limits are exceeded.
         '''
         bw = float(bandwidth)
-        if bw < 0.75e6 or r > 28e6:
+        if bw < 0.75e6 or bw > 28e6:
             raise ParameterError('{:.0f} exceeds limit of [{:.0e},{:.0e}]'.format(bw,0.75e6,28e6))
         self.state.bw = bw
 
@@ -189,7 +189,7 @@ class BaseRASDR(object):
         May raise a ParameterError exception if device limits are exceeded.
         '''
         g = float(gain)
-        if bw < 0.0 or r > 61.17:
+        if g < 0.0 or g > 61.17:
             raise ParameterError('{:.0f} exceeds limit of [{:.0e},{:.0e}]'.format(g,0.0,61.17))
         ga = [ 0.0, 0.0, 0.0 ]
         # compute LNA gain (0.0=bypass, 3.0=midgain, 6.0=maxgain)
