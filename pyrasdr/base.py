@@ -24,13 +24,16 @@ class RASDRException(Exception):
 class PolarityException(RASDRException):
     """Buffer contained an IQ/QI inversion (data loss)"""
 
+class ParameterError(RASDRException):
+    """A parameter exceeds defined limits"""
+
 # http://stackoverflow.com/questions/4984647/accessing-dict-keys-like-an-attribute-in-python
 class AttributeDict(dict):
     __getattr__ = dict.__getitem__
     __setattr__ = dict.__setitem__
 
 class BaseRASDR(object):
-    DEFAULT_GAIN = 34.0         # dB
+    DEFAULT_GAIN = [ 6.0, 25.17, 0.0 ]
     DEFAULT_FC = 400e6          # Hz
     DEFAULT_SR = 2e6            # Hz
     DEFAULT_BW = 1.5e6          # Hz
@@ -43,6 +46,8 @@ class BaseRASDR(object):
     num_bytes_read = 0
     
     state = AttributeDict({
+        'instance':None,
+        'channel':None,
         'open':False,
         'simulation':False,
         'gain':DEFAULT_GAIN,
@@ -58,6 +63,21 @@ class BaseRASDR(object):
     def __init__(self, instance=0, channel=0, simulation=False):
         self.open(instance, channel, simulation)
 
+    def __str__(self):
+        '''Describe key parameters of the receiver.'''
+        msg = 'RASDR-base.{}.{}{} {}\n'.format(
+            self.state.instance,
+            self.state.channel,
+            '-sim' if self.state.simulation else '',
+            'open' if self.state.open else 'closed')
+        msg += '  Fc={:.3e} Hz, BW={:.1e} Hz, Fs={:.1e} s/sec\n'.format(
+            self.state.fc, self.state.bw, self.state.sr)
+        msg += '  Gains={} ({:.2f} dB total)\n'.format(
+            self.state.gain, self.gain)
+        msg += '  Ref={:.3e} Hz, Tuner={}\n'.format(
+            self.state.tcxo, self.state.tuner)
+        return msg
+
     def open(self, instance=0, channel=0, simulation=False):
         '''
         Initialize RASDR object.
@@ -66,6 +86,9 @@ class BaseRASDR(object):
         :param channel:     Identify which channel.  RASDR2/3 has only channel '0'.  RASDR4 has '0' or '1'.
         :param simulation:  If True, will emulate a real device.
         '''
+        self.state.instance = instance
+        self.state.channel = 0
+        self.state.simulation = simulation
         self.state.open = True
 
     def close(self):
@@ -91,7 +114,7 @@ class BaseRASDR(object):
         
         :param frequency: A numeric or string representing the tuning frequency in Hz
         
-        Use get_center_freq() to see the precise frequency used.
+        Use _get_center_freq() to see the precise frequency used.
         '''
         a = [ (r,n) for r in range(10,130,1) for n in range(1,32) ]
         f = [ (self.state.tcxo * r)/n for r,n in a ]
@@ -106,22 +129,94 @@ class BaseRASDR(object):
         return self.state.fc
 
     def _set_sample_rate(self, rate):
-        pass
+        '''
+        Set sample rate of the channel.
+
+        :param rate: A numeric or string representing the sample rate in Hz
+
+        Use _get_sample_rate() to see the actual sample rate used.
+
+        May raise a ParameterError exception if device limits are exceeded.
+        '''
+        r = float(rate)
+        if r < 1e6 or r > 32e6:
+            raise ParameterError('{:.0f} exceeds limit of [{:.0e},{:.0e}]'.format(r,1e6,32e6))
+        self.state.sr = r
+        self.state.sps = (1.0/r)
+
     def _get_sample_rate(self):
         '''Return sample rate of the ADC (in Hz).'''
         return self.state.sr
 
-    def _set_bandwidth(self, bw):
-        pass
+    def _set_bandwidth(self, bandwidth):
+        '''
+        Set bandwidth of the channel.
+
+        :param bandwidth: A numeric or string representing the LPF bandwidth in Hz
+
+        Use _get_bandwidth() to see the actual bandwidth programmed to the receiver.
+
+        May raise a ParameterError exception if device limits are exceeded.
+        '''
+        bw = float(bandwidth)
+        if bw < 0.75e6 or r > 28e6:
+            raise ParameterError('{:.0f} exceeds limit of [{:.0e},{:.0e}]'.format(bw,0.75e6,28e6))
+        self.state.bw = bw
+
     def _get_bandwidth(self):
         '''Return bandwidth of the LPF prior to the ADC (in Hz).'''
         return self.state.bw
 
     def _set_gain(self, gain):
-        pass
+        '''
+        Set the total gain of the channel.
+
+        :param gain: A numeric scalar, array or string requesting the receiver gain in dB
+
+        Use _get_gain() to see the actual gain programmed to the receiver.
+        TODO: consider allowing gain to be an array of gain values for the stages.
+
+        The gain of the system is the sum of the various gain stages available in the
+        receiver.  This interface provides a simple scalar setting to an otherwise
+        complex operation.  According to recommended tuning, gain is to be applied
+        as far upstream in the signal chain as possible.  Therefore, this function
+        will assign and program gain as follows:
+
+          1) the LNA
+          2) the VGA1 (after the mixer)
+          3) the VGA2 (after the LPF)
+
+        May raise a ParameterError exception if device limits are exceeded.
+        '''
+        g = float(gain)
+        if bw < 0.0 or r > 61.17:
+            raise ParameterError('{:.0f} exceeds limit of [{:.0e},{:.0e}]'.format(g,0.0,61.17))
+        ga = [ 0.0, 0.0, 0.0 ]
+        # compute LNA gain (0.0=bypass, 3.0=midgain, 6.0=maxgain)
+        if g>3.0:
+            ga[0] = 6.0
+        else:
+            ga[0] = 3.0 if g>0.0 else 0.0
+        g -= ga[0]
+        # compute VGA1 gain
+        if g>25.17:
+            ga[1] = 25.17
+        else:
+            ga[1] = g   # TODO: there is a table of fixed values
+        g -= ga[1]
+        # compute VGA2 gain
+        if g>30.0:
+            ga[2] = 30.0
+        else:
+            ga[2] = float(int(g/3.0)*3)
+        self.state.gain = ga
+
     def _get_gain(self):
         '''Return gain of the receiver (in dB).'''
-        return self.state.gain
+        gain = 0.0
+        for g in self.state.gain:
+            gain += g
+        return gain
 
     def read(self, n=(DEFAULT_SAMPLES*2*2)):
         raise NotImplementedError('TODO')
