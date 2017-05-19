@@ -1,5 +1,5 @@
 import pytest
-import sys
+import sys,os
 
 def test():
     with pytest.warns(None) as record:
@@ -16,7 +16,7 @@ def test():
         sdr.gain        = 56.0     # dB
         sys.stdout.write(str(sdr)+'\n')
         # test unpacking subroutine
-        with open('test.dat','r') as f:
+        with open(os.path.join('tests','test.dat'),'r') as f:
             buf = f.read()
             iq = sdr._packed_bytes_to_iq(buf)
             sys.stdout.write(str(iq)+'\n')
